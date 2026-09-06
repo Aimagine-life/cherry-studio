@@ -13,7 +13,10 @@ vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({} as Record<string, unknown>)
 })
-vi.mock('electron', () => ({ net: { fetch: vi.fn() } }))
+vi.mock('electron', () => ({
+  app: { isPackaged: false, getAppPath: vi.fn(() => ''), getPath: vi.fn(() => '/mock') },
+  net: { fetch: vi.fn() }
+}))
 vi.mock('@main/ai/mcp/servers/factory', () => ({
   createInMemoryMcpServer: vi.fn(),
   getBuiltinHttpHeaders: () => ({}),
