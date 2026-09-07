@@ -122,7 +122,7 @@ beforeEach(async () => {
           windows.delete(id)
         }
       } as never
-    throw new Error(`Unexpected service ${name}`)
+    return application.getContainer().get(name)
   })
 })
 afterEach(async () => {
