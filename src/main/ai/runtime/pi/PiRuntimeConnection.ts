@@ -33,7 +33,7 @@ import {
   mergeBinaryExecutionEnv,
   mergePathSuffixes
 } from '@main/utils/binaryEnv'
-import { getPathFromEnvironment, getRawShellEnv, getShellEnv } from '@main/utils/shellEnv'
+import { getPathFromEnvironment, getRawShellEnv, getShellEnv, hasMiseInPath } from '@main/utils/shellEnv'
 import { type Span, SpanKind, SpanStatusCode } from '@opentelemetry/api'
 import type { AgentSessionCompactionAnchorData, AgentSessionCompactionTrigger } from '@shared/ai/agentSessionCompaction'
 import type { AgentSessionContextUsage } from '@shared/ai/agentSessionContextUsage'
@@ -110,7 +110,9 @@ function mergePiBashExecutionEnv(env: NodeJS.ProcessEnv): Record<string, string>
   const binarySearchDirs = getBinarySearchDirs()
   const managedShimsDir = getBinaryShimsDir()
   const standaloneBinaryDirs = binarySearchDirs.filter((directory) => directory !== managedShimsDir)
-  const callerOwnsMiseEnvironment = Object.keys(definedEnv).some((key) => key.startsWith('MISE_'))
+  const callerOwnsMiseEnvironment =
+    Object.keys(definedEnv).some((key) => key.startsWith('MISE_')) ||
+    hasMiseInPath(getPathFromEnvironment(definedEnv as Record<string, string | undefined>))
 
   if (callerOwnsMiseEnvironment) {
     // A generic shell may already be activated against the user's mise installation. Do not
@@ -345,13 +347,16 @@ export class PiRuntimeConnection implements AgentRuntimeConnection {
       const rawMiseEnvForBash = Object.fromEntries(
         Object.entries(rawShellEnvForBash).filter(([key]) => key.startsWith('MISE_'))
       )
+      const hasUserMiseForBash =
+        Object.keys(rawMiseEnvForBash).length > 0 ||
+        hasMiseInPath(getPathFromEnvironment(rawShellEnvForBash as Record<string, string | undefined>))
       const cherryMiseEnvForBash = getBinaryExecutionEnv()
       // Replace pi's built-in bash with its SDK definition plus a spawn hook that preserves pi's
       // agent-bin PATH and safely layers the applicable Cherry-managed binary contract.
       const managedBashTool = pi.createBashToolDefinition(workspacePath, {
         spawnHook: (context) => {
           const merged = mergePiBashExecutionEnv(context.env)
-          if (Object.keys(rawMiseEnvForBash).length > 0) {
+          if (hasUserMiseForBash) {
             for (const key of Object.keys(cherryMiseEnvForBash)) {
               if (!(key in rawMiseEnvForBash)) delete merged[key]
             }
